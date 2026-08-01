@@ -3,13 +3,15 @@
 Run modes
 ---------
 --tools-only   Call each tool's underlying logic directly; no LLM involved.
-               Useful for CI, debugging, and demos without Bedrock access.
-(default)      Send a prompt to a Strands + Bedrock agent that has all three
-               tools available and can chain them autonomously.
+               Useful for CI, debugging, and demos without any LLM access.
+(default)      Send a prompt to a Strands agent that has all three tools
+               available and can chain them autonomously. MODEL_PROVIDER
+               selects which LLM backend it talks to (see _run_agent).
 """
 
 import argparse
 import json
+import os
 import sys
 
 from src.tools import (
@@ -62,10 +64,35 @@ def _run_tools_only() -> None:
         _print_section(f"Pricing: {itype}", cost)
 
 
+def _build_model():
+    """Build the Strands model for MODEL_PROVIDER ('bedrock' or 'anthropic').
+
+    bedrock (default): Amazon Bedrock, model id from BEDROCK_MODEL_ID.
+        Needs AWS credentials plus Bedrock model access/enrollment.
+    anthropic: Anthropic API directly, model id from ANTHROPIC_MODEL_ID.
+        Needs ANTHROPIC_API_KEY; no AWS involvement at all.
+    """
+    provider = os.getenv("MODEL_PROVIDER", "bedrock")
+
+    if provider == "anthropic":
+        from strands.models.anthropic import AnthropicModel
+
+        api_key = os.getenv("ANTHROPIC_API_KEY")
+        if not api_key:
+            print("ANTHROPIC_API_KEY is not set.", file=sys.stderr)
+            sys.exit(1)
+        model_id = os.getenv("ANTHROPIC_MODEL_ID", "claude-sonnet-4-5-20250929")
+        return AnthropicModel(client_args={"api_key": api_key}, model_id=model_id)
+
+    from strands.models.bedrock import BedrockModel
+
+    model_id = os.getenv("BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-5-20250929-v1:0")
+    return BedrockModel(model_id=model_id)
+
+
 def _run_agent(prompt: str) -> None:
     try:
         from strands import Agent
-        from strands.models.bedrock import BedrockModel
     except ImportError:
         print(
             "strands-agents is not installed. Run: pip install strands-agents",
@@ -73,7 +100,7 @@ def _run_agent(prompt: str) -> None:
         )
         sys.exit(1)
 
-    model = BedrockModel(model_id="anthropic.claude-3-5-sonnet-20241022-v2:0")
+    model = _build_model()
     agent = Agent(model=model, tools=_AGENT_TOOLS)
     agent(prompt)
 
