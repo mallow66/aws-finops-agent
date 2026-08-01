@@ -82,7 +82,14 @@ def _build_model():
             print("ANTHROPIC_API_KEY is not set.", file=sys.stderr)
             sys.exit(1)
         model_id = os.getenv("ANTHROPIC_MODEL_ID", "claude-sonnet-4-5-20250929")
-        return AnthropicModel(client_args={"api_key": api_key}, model_id=model_id)
+        # max_tokens is required by AnthropicModel; it is only read when the
+        # first request is formatted, so omitting it fails mid-run, not here.
+        max_tokens = int(os.getenv("ANTHROPIC_MAX_TOKENS", "8192"))
+        return AnthropicModel(
+            client_args={"api_key": api_key},
+            model_id=model_id,
+            max_tokens=max_tokens,
+        )
 
     from strands.models.bedrock import BedrockModel
 
@@ -100,9 +107,22 @@ def _run_agent(prompt: str) -> None:
         )
         sys.exit(1)
 
+    from strands.types.exceptions import ModelThrottledException
+
     model = _build_model()
     agent = Agent(model=model, tools=_AGENT_TOOLS)
-    agent(prompt)
+    try:
+        agent(prompt)
+    except ModelThrottledException as exc:
+        # The SDK already exhausted its own retries by this point, so a raw
+        # traceback here is just noise — the fix is on the account, not in code.
+        print(f"\nModel is throttled and retries are exhausted: {exc}", file=sys.stderr)
+        print(
+            "Wait for the quota to reset, switch provider with MODEL_PROVIDER=anthropic, "
+            "or run 'python -m src.agent --tools-only' to exercise the tools without an LLM.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
 
 def main() -> None:

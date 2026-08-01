@@ -79,6 +79,7 @@ requirements.txt
 | `BEDROCK_MODEL_ID` | e.g. `us.anthropic.claude-sonnet-4-5-20250929-v1:0` | see `agent.py` | Used when `MODEL_PROVIDER=bedrock` |
 | `ANTHROPIC_API_KEY` | — | — | Required when `MODEL_PROVIDER=anthropic` |
 | `ANTHROPIC_MODEL_ID` | e.g. `claude-sonnet-4-5-20250929` | see `agent.py` | Used when `MODEL_PROVIDER=anthropic` |
+| `ANTHROPIC_MAX_TOKENS` | e.g. `8192` | `8192` | Response token cap; required by the Anthropic provider |
 
 ---
 
