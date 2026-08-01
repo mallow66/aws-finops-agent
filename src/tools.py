@@ -17,11 +17,18 @@ _HOURS_PER_MONTH = 730
 def _get_rightsizing_recommendations() -> list[dict]:
     if MOCK_MODE:
         return MOCK_RIGHTSIZING_RECOMMENDATIONS
+    # get_ec2_instance_recommendations has no boto3 paginator defined for it;
+    # page manually via nextToken instead.
     client = boto3.client("compute-optimizer")
-    paginator = client.get_paginator("get_ec2_instance_recommendations")
     recs: list[dict] = []
-    for page in paginator.paginate():
+    next_token = None
+    while True:
+        kwargs = {"nextToken": next_token} if next_token else {}
+        page = client.get_ec2_instance_recommendations(**kwargs)
         recs.extend(page.get("instanceRecommendations", []))
+        next_token = page.get("nextToken")
+        if not next_token:
+            break
     return recs
 
 

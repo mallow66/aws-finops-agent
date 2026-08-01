@@ -1,4 +1,11 @@
-/java/target/
 /venv/
 /.idea/
 /.claude/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# CDK build output and account-specific lookup cache
+infra/.venv/
+infra/cdk.out/
+infra/cdk.context.json
