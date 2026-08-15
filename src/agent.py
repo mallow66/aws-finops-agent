@@ -4,7 +4,7 @@ Run modes
 ---------
 --tools-only   Call each tool's underlying logic directly; no LLM involved.
                Useful for CI, debugging, and demos without any LLM access.
-(default)      Send a prompt to a Strands agent that has all three tools
+(default)      Send a prompt to a Strands agent that has all the tools
                available and can chain them autonomously. MODEL_PROVIDER
                selects which LLM backend it talks to (see _run_agent).
 """
@@ -15,24 +15,42 @@ import os
 import sys
 
 from src.tools import (
+    _compute_savings_summary,
+    _estimate_ebs_volume_cost,
+    _estimate_eip_cost,
     _estimate_instance_cost,
     _get_idle_resources,
     _get_rightsizing_recommendations,
+    compute_savings_summary,
+    estimate_ebs_volume_cost,
+    estimate_eip_cost,
     estimate_instance_cost,
     get_idle_resources,
     get_rightsizing_recommendations,
 )
 
-_AGENT_TOOLS = [get_rightsizing_recommendations, get_idle_resources, estimate_instance_cost]
+_AGENT_TOOLS = [
+    get_rightsizing_recommendations,
+    get_idle_resources,
+    estimate_instance_cost,
+    estimate_ebs_volume_cost,
+    estimate_eip_cost,
+    compute_savings_summary,
+]
 
 _DEFAULT_PROMPT = (
     "Analyze our AWS spend. "
     "Call get_rightsizing_recommendations to find over-provisioned instances. "
-    "For each recommendation, call estimate_instance_cost on the current instance "
-    "type and on the recommended type, then compute the exact monthly saving "
-    "yourself instead of trusting the precomputed figure. "
-    "Also call get_idle_resources and report unattached EBS volumes and Elastic IPs. "
-    "Finish with a prioritized summary and a total estimated monthly savings figure."
+    "For each recommendation that has options, call estimate_instance_cost on the "
+    "current type and on each recommended type. "
+    "Call get_idle_resources; price every unattached EBS volume with "
+    "estimate_ebs_volume_cost and every unassociated Elastic IP with estimate_eip_cost. "
+    "Do not do any dollar arithmetic yourself: build one line item per finding from "
+    "the tool-reported figures, pass them all to compute_savings_summary, and report "
+    "its per-item savings and total verbatim. "
+    "If something cannot be priced with these tools, label it 'unpriced' instead of "
+    "estimating a figure from memory. "
+    "Finish with a prioritized summary and the tool-computed total monthly savings."
 )
 
 
@@ -62,6 +80,31 @@ def _run_tools_only() -> None:
     for itype in sorted(seen):
         cost = _estimate_instance_cost(itype)
         _print_section(f"Pricing: {itype}", cost)
+
+    # Price the idle resources and roll everything up deterministically.
+    line_items: list[dict] = []
+    for vol in idle.get("unattached_volumes", []):
+        cost = _estimate_ebs_volume_cost(vol.get("VolumeType", ""), vol.get("Size", 0))
+        _print_section(f"Pricing: EBS {vol.get('VolumeId', '?')}", cost)
+        if cost.get("monthly_cost_usd") is not None:
+            line_items.append({
+                "label": f"Delete {vol.get('VolumeId', '?')}",
+                "current_monthly_cost_usd": cost["monthly_cost_usd"],
+                "optimized_monthly_cost_usd": 0,
+            })
+
+    eips = idle.get("unattached_eips", [])
+    if eips:
+        eip_cost = _estimate_eip_cost()
+        _print_section("Pricing: Elastic IP (per address)", eip_cost)
+        for eip in eips:
+            line_items.append({
+                "label": f"Release {eip.get('AllocationId', '?')}",
+                "current_monthly_cost_usd": eip_cost["monthly_cost_usd"],
+                "optimized_monthly_cost_usd": 0,
+            })
+
+    _print_section("Savings Summary (idle resources)", _compute_savings_summary(line_items))
 
 
 def _build_model():

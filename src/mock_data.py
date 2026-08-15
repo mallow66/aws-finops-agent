@@ -117,3 +117,15 @@ MOCK_EC2_PRICES: dict[str, float] = {
     "r5.2xlarge": 367.92,
     "r5.4xlarge": 735.84,
 }
+
+# Monthly storage price per GiB for us-east-1.
+# Source: https://aws.amazon.com/ebs/pricing/ as of 2025-01.
+MOCK_EBS_PRICES_PER_GIB_MONTH: dict[str, float] = {
+    "gp2":      0.10,
+    "gp3":      0.08,
+    "io1":      0.125,
+    "io2":      0.125,
+    "st1":      0.045,
+    "sc1":      0.015,
+    "standard": 0.05,
+}

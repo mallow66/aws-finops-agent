@@ -13,6 +13,9 @@ Built with the [Strands Agents SDK](https://github.com/strands-agents/sdk-python
 | `get_rightsizing_recommendations` | `compute-optimizer:GetEC2InstanceRecommendations` | Over/under-provisioned EC2 instances with recommended alternatives and utilization metrics |
 | `get_idle_resources` | `ec2:DescribeVolumes`, `ec2:DescribeAddresses` | Unattached EBS volumes and unassociated Elastic IPs |
 | `estimate_instance_cost` | `pricing:GetProducts` | Monthly on-demand Linux price for any EC2 instance type in any region |
+| `estimate_ebs_volume_cost` | `pricing:GetProducts` | Monthly storage cost for an EBS volume by type and size |
+| `estimate_eip_cost` | — (flat AWS rate) | Monthly cost of one public IPv4 / Elastic IP |
+| `compute_savings_summary` | — (pure math) | Deterministic per-item and total savings, so no dollar arithmetic is left to the LLM |
 
 ### Tool-chaining pattern
 
